@@ -3,14 +3,167 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Turnos — Frontend</title>
+  <title>Turnos — Almacén</title>
   <style>
-    body{font-family:system-ui,Arial;margin:2rem}
-    .ok{display:inline-block;padding:.5rem 1rem;border:1px solid #ccc;border-radius:8px}
+    body{font-family:system-ui,Arial;margin:20px;max-width:900px}
+    header{display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+    select,input,button{padding:8px;border:1px solid #ccc;border-radius:8px}
+    .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:16px}
+    .slot{padding:10px;border-radius:10px;border:1px solid #ddd;text-align:center;cursor:pointer}
+    .ok{background:#e9fbe9;border-color:#cbe8cb}
+    .full{background:#fbe9e9;border-color:#f0caca;opacity:.7;cursor:not-allowed}
+    dialog{border:none;border-radius:12px;max-width:520px;width:90%}
+    dialog form{display:grid;gap:8px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   </style>
 </head>
 <body>
-  <h1>Turnos — Frontend</h1>
-  <p class="ok">Deploy listo 👌</p>
+  <h1>Turnos — Reservas</h1>
+
+  <header>
+    <label>Planta:
+      <select id="planta"></select>
+    </label>
+    <label>Fecha:
+      <input id="fecha" type="date" />
+    </label>
+    <label>Modo:
+      <select id="modo">
+        <option value="mostrar">mostrar</option>
+        <option value="ocultar">ocultar</option>
+      </select>
+    </label>
+    <button id="btnCargar">Cargar slots</button>
+  </header>
+
+  <div class="slots" id="slots"></div>
+
+  <dialog id="dlg">
+    <form id="frm">
+      <h3>Reservar <span id="hSel"></span></h3>
+      <div class="row">
+        <input name="empresa" placeholder="Empresa" required />
+        <input name="insumo" placeholder="Insumo" required />
+      </div>
+      <div class="row">
+        <input name="pallets" type="number" min="0" placeholder="Pallets" required />
+        <input name="camiones" type="number" min="1" placeholder="Camiones" required />
+      </div>
+      <input name="contacto_email" type="email" placeholder="Email contacto" required />
+      <textarea name="aclaracion" placeholder="Aclaración (opcional)"></textarea>
+      <menu>
+        <button type="submit">Confirmar</button>
+        <button type="button" onclick="dlg.close()">Cancelar</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script>
+    const selPlanta = document.getElementById('planta');
+    const inpFecha  = document.getElementById('fecha');
+    const selModo   = document.getElementById('modo');
+    const btnCargar = document.getElementById('btnCargar');
+    const divSlots  = document.getElementById('slots');
+    const dlg       = document.getElementById('dlg');
+    const frm       = document.getElementById('frm');
+    const hSel      = document.getElementById('hSel');
+
+    let horaSeleccionada = null;
+
+    // 1) Cargar plantas al iniciar
+    (async function loadPlants(){
+      const r = await fetch('/api/plants');
+      const data = await r.json();
+      selPlanta.innerHTML = (data.plants || [])
+        .map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    })();
+
+    // 2) Fecha por defecto: hoy (formato yyyy-mm-dd)
+    inpFecha.value = new Date().toISOString().slice(0,10);
+
+    // 3) Cargar slots
+    btnCargar.addEventListener('click', async () => {
+      const planta = selPlanta.value;
+      const fecha  = inpFecha.value;
+      const modo   = selModo.value;
+
+      divSlots.textContent = 'Cargando...';
+
+      const url = `/api/catalog?planta_id=${encodeURIComponent(planta)}&fecha=${encodeURIComponent(fecha)}&modo=${encodeURIComponent(modo)}`;
+      const r = await fetch(url);
+      const data = await r.json();
+
+      if (!data.ok) {
+        divSlots.textContent = `Error: ${data.motivo || 'no se pudo cargar'}`;
+        return;
+      }
+
+      divSlots.innerHTML = '';
+      (data.slots || []).forEach(slot => {
+        const b = document.createElement('button');
+        b.className = 'slot ' + (slot.estado === 'Ocupado' ? 'full' : 'ok');
+        b.textContent = `${slot.hora} ${slot.estado === 'Ocupado' ? '⛔' : `(${slot.disponibles} disp.)`}`;
+        b.disabled = slot.estado === 'Ocupado';
+
+        b.addEventListener('click', () => {
+          horaSeleccionada = slot.hora;
+          hSel.textContent = `${planta} — ${fecha} — ${horaSeleccionada}`;
+          dlg.showModal();
+        });
+
+        divSlots.appendChild(b);
+      });
+    });
+
+    // 4) Enviar reserva
+    frm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const planta = selPlanta.value;
+      const fecha  = inpFecha.value;
+      const hora   = horaSeleccionada;
+
+      const formData = new FormData(frm);
+      const payload = {
+        planta_id: planta,
+        fecha_local: fecha,
+        hora_local: hora,
+        empresa: formData.get('empresa')?.trim(),
+        insumo: formData.get('insumo')?.trim(),
+        pallets: Number(formData.get('pallets') || 0),
+        camiones: Number(formData.get('camiones') || 1),
+        aclaracion: formData.get('aclaracion') || '',
+        contacto_email: formData.get('contacto_email')?.trim()
+      };
+
+      // Validaciones mínimas
+      if (!payload.empresa || !payload.insumo || !payload.contacto_email) {
+        alert('Completá los campos obligatorios.'); return;
+      }
+
+      const btn = frm.querySelector('button[type="submit"]');
+      btn.disabled = true; btn.textContent = 'Enviando...';
+
+      try {
+        const r = await fetch('/api/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await r.json();
+
+        if (data.ok) {
+          alert(`✅ Turno confirmado. ID: ${data.turno_id}`);
+          dlg.close();
+          btnCargar.click(); // refrescar slots
+        } else {
+          alert(`❌ Rechazado: ${data.motivo || 'Error'}`);
+        }
+      } catch (e) {
+        alert('Error de red: ' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar';
+      }
+    });
+  </script>
 </body>
 </html>
