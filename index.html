@@ -2,46 +2,208 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Turnos — Almacén</title>
+
+  <!-- ===== Diseño sin toolchain: CSS puro ===== -->
   <style>
-    body{font-family:system-ui,Arial;margin:20px;max-width:900px}
-    header{display:flex;gap:12px;align-items:end;flex-wrap:wrap}
-    select,input,button{padding:8px;border:1px solid #ccc;border-radius:8px}
-    .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:16px}
-    .slot{padding:10px;border-radius:10px;border:1px solid #ddd;text-align:center;cursor:pointer}
-    .ok{background:#e9fbe9;border-color:#cbe8cb}
-    .full{background:#fbe9e9;border-color:#f0caca;opacity:.7;cursor:not-allowed}
-    dialog{border:none;border-radius:12px;max-width:520px;width:90%}
-    dialog form{display:grid;gap:8px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    :root{
+      --bg: #0f1223;
+      --bg-alt: #141832;
+      --panel: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --text: #eef1ff;
+      --muted: #b7c0ff;
+      --primary: #7c91ff;
+      --primary-strong:#5a73ff;
+      --success: #37d39b;
+      --danger: #ff6b6b;
+      --shadow: 0 10px 30px rgba(0,0,0,.25);
+      --radius: 14px;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg: #f6f7fb;
+        --bg-alt:#eef0f7;
+        --panel: rgba(255,255,255,0.8);
+        --border: rgba(0,0,0,0.06);
+        --text: #111322;
+        --muted:#48508a;
+        --primary:#485bff;
+        --primary-strong:#3143ff;
+        --success:#19b37f;
+        --danger:#e64b4b;
+        --shadow: 0 10px 30px rgba(0,0,0,.08);
+      }
+    }
+
+    /* Fondo con degradé sutil */
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 10% 0%, #4a2cff22, transparent 60%),
+        radial-gradient(800px 800px at 100% 100%, #00ffd522, transparent 50%),
+        linear-gradient(180deg, var(--bg), var(--bg-alt));
+      min-height:100dvh;
+      display:flex; align-items:flex-start; justify-content:center;
+    }
+
+    /* Contenedor tipo “glass” */
+    .wrap{
+      width:min(1100px, 92vw);
+      margin:32px auto;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      border:1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    header{
+      padding:20px 22px;
+      border-bottom:1px solid var(--border);
+      display:flex; gap:14px; flex-wrap:wrap; align-items:end; justify-content:space-between;
+    }
+    .brand{
+      display:flex; gap:12px; align-items:center;
+    }
+    .logo{
+      width:40px; height:40px; border-radius:10px;
+      background: linear-gradient(135deg, var(--primary), #00d6ff);
+      box-shadow: inset 0 0 10px #ffffff33, 0 10px 20px #00000020;
+    }
+    .brand h1{ font-size:20px; margin:0; letter-spacing:.2px;}
+    .brand .sub{ font-size:12px; color:var(--muted); margin-top:2px}
+
+    .controls{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:end;
+    }
+    label{ font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:6px }
+    select,input,button,textarea{
+      font:inherit; color:inherit;
+      padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      outline:none;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator{
+      filter: invert(0.2) sepia(1) saturate(2) hue-rotate(200deg) opacity(0.7);
+    }
+    button.primary{
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      color:white; border:none; cursor:pointer;
+      transition: transform .05s ease, filter .2s ease;
+    }
+    button.primary:active{ transform: translateY(1px) scale(0.99) }
+    button:disabled{ opacity:.6; cursor:not-allowed }
+
+    /* Área de slots */
+    .content{ padding: 20px 22px 28px }
+    .status{ margin:8px 0 16px; color:var(--muted); font-size:13px }
+    .grid{
+      display:grid; gap:12px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+    .slot{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding:14px 12px;
+      display:flex; flex-direction:column; gap:8px; align-items:flex-start;
+      transition: transform .06s ease, box-shadow .2s ease, background .2s;
+      position: relative;
+    }
+    .slot.ok{ cursor:pointer }
+    .slot.ok:hover{ transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0,0,0,.12) }
+    .slot .h{ font-weight:700; letter-spacing:.4px }
+    .chip{
+      font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted);
+      background: rgba(255,255,255,0.05);
+    }
+    .ok .chip{ color:#0b6; border-color:#0b65; background:#0b62; background: rgba(55, 211, 155, 0.12) }
+    .full{ opacity:.65 }
+    .full .chip{ color:var(--danger); border-color:#ff6b6b55; background: rgba(255, 107, 107, .12) }
+    .blocked .chip{ color:#e6b84b; border-color:#e6b84b55; background: rgba(230,184,75,.12) }
+
+    /* Loader esqueleto */
+    .skeleton{
+      border-radius:16px; height:70px; background: linear-gradient(90deg, #ffffff10, #ffffff22, #ffffff10);
+      animation: sk 1.2s infinite linear; border:1px solid var(--border);
+    }
+    @keyframes sk{ 0%{background-position:-200px 0} 100%{background-position:200px 0} }
+
+    /* Dialog (modal) nativo con estilo */
+    dialog{
+      border:none; border-radius:16px; padding:0; width:min(560px, 92vw); background: var(--panel);
+      backdrop-filter: blur(10px); color: var(--text);
+      box-shadow: var(--shadow); overflow:hidden;
+    }
+    .dlg-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--border) }
+    .dlg-body{ padding:16px }
+    .row{ display:grid; grid-template-columns:1fr 1fr; gap:10px }
+    .dlg-actions{ display:flex; justify-content:flex-end; gap:10px; padding:14px 16px; border-top:1px solid var(--border) }
+    .ghost{ background:transparent }
+    .danger{ background: linear-gradient(135deg, #ff6b6b, #ff3b3b); color:white; border:none }
+    textarea{ min-height:70px; resize:vertical }
+
+    /* Toasts */
+    .toasts{ position: fixed; bottom: 16px; right: 16px; display:flex; flex-direction:column; gap:10px; z-index: 99 }
+    .toast{
+      background: var(--panel); border:1px solid var(--border); border-left:4px solid var(--primary);
+      padding:10px 12px; border-radius:12px; box-shadow: var(--shadow); color:var(--text); min-width: 260px;
+    }
+    .toast.ok{ border-left-color: var(--success) }
+    .toast.err{ border-left-color: var(--danger) }
+
+    /* Pequeños helpers */
+    .muted{ color: var(--muted) }
+    .spacer{ flex:1 }
   </style>
 </head>
 <body>
-  <h1>Turnos — Reservas</h1>
+  <main class="wrap" role="main" aria-live="polite">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Turnos — Almacén</h1>
+          <div class="sub">Reservas de proveedores</div>
+        </div>
+      </div>
 
-  <header>
-    <label>Planta:
-      <select id="planta"></select>
-    </label>
-    <label>Fecha:
-      <input id="fecha" type="date" />
-    </label>
-    <label>Modo:
-      <select id="modo">
-        <option value="mostrar">mostrar</option>
-        <option value="ocultar">ocultar</option>
-      </select>
-    </label>
-    <button id="btnCargar">Cargar slots</button>
-  </header>
+      <div class="controls">
+        <label>Planta
+          <select id="planta" aria-label="Planta"></select>
+        </label>
+        <label>Fecha
+          <input id="fecha" type="date" aria-label="Fecha" />
+        </label>
+        <label>Modo
+          <select id="modo" aria-label="Modo de catálogo">
+            <option value="mostrar">mostrar</option>
+            <option value="ocultar">ocultar</option>
+          </select>
+        </label>
+        <button id="btnCargar" class="primary">Cargar slots</button>
+      </div>
+    </header>
 
-  <div class="slots" id="slots"></div>
+    <section class="content">
+      <div id="status" class="status muted">Elegí planta, fecha y modo para ver disponibilidad.</div>
+      <div id="slots" class="grid" role="list"></div>
+    </section>
+  </main>
 
+  <!-- Modal de reserva -->
   <dialog id="dlg">
-    <form id="frm">
-      <h3>Reservar <span id="hSel"></span></h3>
-      <div class="row">
+    <div class="dlg-head">
+      <strong>Reservar turno</strong>
+      <button class="ghost" onclick="dlg.close()" aria-label="Cerrar">✕</button>
+    </div>
+    <form id="frm" class="dlg-body">
+      <div class="muted" id="infoSel"></div>
+      <div class="row" style="margin-top:10px">
         <input name="empresa" placeholder="Empresa" required />
         <input name="insumo" placeholder="Insumo" required />
       </div>
@@ -49,121 +211,186 @@
         <input name="pallets" type="number" min="0" placeholder="Pallets" required />
         <input name="camiones" type="number" min="1" placeholder="Camiones" required />
       </div>
-      <input name="contacto_email" type="email" placeholder="Email contacto" required />
+      <input name="contacto_email" type="email" placeholder="Email de contacto" required />
       <textarea name="aclaracion" placeholder="Aclaración (opcional)"></textarea>
-      <menu>
-        <button type="submit">Confirmar</button>
-        <button type="button" onclick="dlg.close()">Cancelar</button>
-      </menu>
+      <div class="dlg-actions">
+        <button type="button" class="ghost" onclick="dlg.close()">Cancelar</button>
+        <button type="submit" class="primary">Confirmar</button>
+      </div>
     </form>
   </dialog>
 
+  <!-- Toasts -->
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
   <script>
-    const selPlanta = document.getElementById('planta');
-    const inpFecha  = document.getElementById('fecha');
-    const selModo   = document.getElementById('modo');
-    const btnCargar = document.getElementById('btnCargar');
-    const divSlots  = document.getElementById('slots');
-    const dlg       = document.getElementById('dlg');
-    const frm       = document.getElementById('frm');
-    const hSel      = document.getElementById('hSel');
+    // ===== Helpers UI =====
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => document.querySelectorAll(sel);
+    const selPlanta = $('#planta');
+    const inpFecha  = $('#fecha');
+    const selModo   = $('#modo');
+    const btnCargar = $('#btnCargar');
+    const grid      = $('#slots');
+    const statusEl  = $('#status');
+    const dlg       = $('#dlg');
+    const frm       = $('#frm');
+    const infoSel   = $('#infoSel');
+    const toasts    = $('#toasts');
+    let slotSel = null;
 
-    let horaSeleccionada = null;
+    function toast(msg, type='ok'){
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      toasts.appendChild(el);
+      setTimeout(()=>{ el.remove(); }, 3500);
+    }
 
-    // 1) Cargar plantas al iniciar
+    function skeleton(n=8){
+      grid.innerHTML = '';
+      for(let i=0;i<n;i++){
+        const sk = document.createElement('div');
+        sk.className = 'skeleton';
+        grid.appendChild(sk);
+      }
+    }
+
+    // ===== 1) Cargar plantas =====
     (async function loadPlants(){
-      const r = await fetch('/api/plants');
-      const data = await r.json();
-      selPlanta.innerHTML = (data.plants || [])
-        .map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      try{
+        const r = await fetch('/api/plants');
+        const data = await r.json();
+        if(!data.ok){ throw new Error('No se pudieron cargar las plantas'); }
+        selPlanta.innerHTML = (data.plants||[])
+          .map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      }catch(err){
+        toast('Error cargando plantas', 'err');
+      }
     })();
 
-    // 2) Fecha por defecto: hoy (formato yyyy-mm-dd)
+    // 2) Fecha por defecto = hoy
     inpFecha.value = new Date().toISOString().slice(0,10);
 
-    // 3) Cargar slots
-    btnCargar.addEventListener('click', async () => {
+    // ===== 3) Cargar catálogo =====
+    btnCargar.addEventListener('click', loadCatalog);
+    async function loadCatalog(){
       const planta = selPlanta.value;
       const fecha  = inpFecha.value;
       const modo   = selModo.value;
+      if(!planta || !fecha){ toast('Elegí planta y fecha', 'err'); return; }
 
-      divSlots.textContent = 'Cargando...';
+      statusEl.textContent = 'Cargando catálogo…';
+      skeleton(10);
 
-      const url = `/api/catalog?planta_id=${encodeURIComponent(planta)}&fecha=${encodeURIComponent(fecha)}&modo=${encodeURIComponent(modo)}`;
-      const r = await fetch(url);
-      const data = await r.json();
+      try{
+        const url = `/api/catalog?planta_id=${encodeURIComponent(planta)}&fecha=${encodeURIComponent(fecha)}&modo=${encodeURIComponent(modo)}`;
+        const r = await fetch(url);
+        const data = await r.json();
 
-      if (!data.ok) {
-        divSlots.textContent = `Error: ${data.motivo || 'no se pudo cargar'}`;
-        return;
-      }
+        if(!data.ok){
+          grid.innerHTML = '';
+          statusEl.innerHTML = `⚠️ ${data.motivo || 'No se pudo cargar el catálogo.'}`;
+          return;
+        }
 
-      divSlots.innerHTML = '';
-      (data.slots || []).forEach(slot => {
-        const b = document.createElement('button');
-        b.className = 'slot ' + (slot.estado === 'Ocupado' ? 'full' : 'ok');
-        b.textContent = `${slot.hora} ${slot.estado === 'Ocupado' ? '⛔' : `(${slot.disponibles} disp.)`}`;
-        b.disabled = slot.estado === 'Ocupado';
+        statusEl.textContent = `${planta} — ${fecha} (${modo})`;
+        grid.innerHTML = '';
 
-        b.addEventListener('click', () => {
-          horaSeleccionada = slot.hora;
-          hSel.textContent = `${planta} — ${fecha} — ${horaSeleccionada}`;
-          dlg.showModal();
+        (data.slots||[]).forEach(slot => {
+          const card = document.createElement('article');
+          const isFull = slot.estado === 'Ocupado';
+          const isBlocked = slot.estado === 'Bloqueado';
+
+          card.className = `slot ${isFull ? 'full' : 'ok'} ${isBlocked ? 'blocked' : ''}`;
+          card.setAttribute('role','listitem');
+
+          card.innerHTML = `
+            <div class="h">${slot.hora}</div>
+            <div class="chip">${isBlocked ? 'Bloqueado' : (isFull ? 'Ocupado' : `${slot.disponibles} disponibles`)}</div>
+          `;
+
+          if(!isFull && !isBlocked){
+            card.tabIndex = 0;
+            card.addEventListener('click', () => openBooking(slot));
+            card.addEventListener('keypress', (e)=>{ if(e.key==='Enter') openBooking(slot); });
+          }
+
+          grid.appendChild(card);
         });
 
-        divSlots.appendChild(b);
-      });
-    });
+      }catch(err){
+        grid.innerHTML = '';
+        statusEl.textContent = 'Error cargando catálogo.';
+        toast('Error de red consultando catálogo', 'err');
+      }
+    }
 
-    // 4) Enviar reserva
-    frm.addEventListener('submit', async (e) => {
+    // ===== 4) Abrir modal y reservar =====
+    function openBooking(slot){
+      slotSel = slot;
+      const planta = selPlanta.value, fecha = inpFecha.value;
+      infoSel.textContent = `Planta ${planta} — ${fecha} — ${slot.hora}`;
+      frm.reset();
+      dlg.showModal();
+    }
+
+    frm.addEventListener('submit', async (e)=>{
       e.preventDefault();
+      if(!slotSel) return;
+
       const planta = selPlanta.value;
       const fecha  = inpFecha.value;
-      const hora   = horaSeleccionada;
+      const hora   = slotSel.hora;
 
-      const formData = new FormData(frm);
+      const fd = new FormData(frm);
       const payload = {
         planta_id: planta,
         fecha_local: fecha,
         hora_local: hora,
-        empresa: formData.get('empresa')?.trim(),
-        insumo: formData.get('insumo')?.trim(),
-        pallets: Number(formData.get('pallets') || 0),
-        camiones: Number(formData.get('camiones') || 1),
-        aclaracion: formData.get('aclaracion') || '',
-        contacto_email: formData.get('contacto_email')?.trim()
+        empresa: (fd.get('empresa')||'').trim(),
+        insumo: (fd.get('insumo')||'').trim(),
+        pallets: Number(fd.get('pallets')||0),
+        camiones: Number(fd.get('camiones')||1),
+        aclaracion: fd.get('aclaracion')||'',
+        contacto_email: (fd.get('contacto_email')||'').trim()
       };
-
-      // Validaciones mínimas
-      if (!payload.empresa || !payload.insumo || !payload.contacto_email) {
-        alert('Completá los campos obligatorios.'); return;
+      if(!payload.empresa || !payload.insumo || !payload.contacto_email){
+        toast('Completá los obligatorios', 'err'); return;
       }
 
       const btn = frm.querySelector('button[type="submit"]');
-      btn.disabled = true; btn.textContent = 'Enviando...';
+      btn.disabled = true; btn.textContent = 'Enviando…';
 
-      try {
+      try{
         const r = await fetch('/api/book', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
           body: JSON.stringify(payload)
         });
         const data = await r.json();
 
-        if (data.ok) {
-          alert(`✅ Turno confirmado. ID: ${data.turno_id}`);
+        if(data.ok){
+          toast(`Turno confirmado (ID ${data.turno_id})`, 'ok');
           dlg.close();
-          btnCargar.click(); // refrescar slots
-        } else {
-          alert(`❌ Rechazado: ${data.motivo || 'Error'}`);
+          loadCatalog(); // refresca
+        }else{
+          toast(`Rechazado: ${data.motivo || 'Error'}`, 'err');
         }
-      } catch (e) {
-        alert('Error de red: ' + e.message);
-      } finally {
+      }catch(err){
+        toast('Error de red al reservar', 'err');
+      }finally{
         btn.disabled = false; btn.textContent = 'Confirmar';
+      }
+    });
+
+    // Atajo: Enter sobre botón “Cargar slots”
+    document.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' && (document.activeElement===selPlanta || document.activeElement===inpFecha || document.activeElement===selModo)){
+        loadCatalog();
       }
     });
   </script>
 </body>
 </html>
+
